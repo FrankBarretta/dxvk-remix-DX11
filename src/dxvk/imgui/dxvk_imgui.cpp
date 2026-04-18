@@ -1431,6 +1431,19 @@ namespace dxvk {
     const bool useOverlayInput = m_overlayWin.ptr() != nullptr && RtxOptions::useNewGuiInputMethod();
     const bool overlayOwnsInputMsg = useOverlayInput && (isKeyMsg || isMouseMsg || msg == WM_INPUT);
 
+    // If the game holds SetCapture on its own HWND while the UI is open,
+    // ImGui_ImplWin32 won't take capture on WM_*BUTTONDOWN (it only does
+    // so when GetCapture() == NULL), so the matching WM_*BUTTONUP is
+    // delivered to the game instead of ImGui. ImGui then sees the button
+    // as "still down" and never activates the clicked widget. Releasing
+    // capture right before forwarding lets ImGui pair down/up correctly.
+    if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN || msg == WM_XBUTTONDOWN) {
+      const bool uiOpenForCapture = getEffectiveUIType() != UIType::None;
+      if (uiOpenForCapture && ::GetCapture() == hWnd) {
+        ::ReleaseCapture();
+      }
+    }
+
     if (!overlayOwnsInputMsg) {
       ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
     }
@@ -1466,28 +1479,21 @@ namespace dxvk {
     // and the OS cursor state. This pinpoints whether the symptom is
     // "ImGui doesn't see the click" vs. "ImGui sees it but the cursor
     // is being warped by the game".
-    if (uiOpen && (msg == WM_LBUTTONDOWN || msg == WM_MOUSEMOVE)) {
-      static uint32_t sFirstClickLog = 0;
-      static uint32_t sFirstMoveLog = 0;
-      const bool isClick = (msg == WM_LBUTTONDOWN);
-      uint32_t& counter = isClick ? sFirstClickLog : sFirstMoveLog;
-      if (counter < 3) {
-        ++counter;
-        POINT os = {};
-        ::GetCursorPos(&os);
-        RECT clip = {};
-        ::GetClipCursor(&clip);
-        HWND cap = ::GetCapture();
-        Logger::info(str::format(
-          "[ImGUI-Diag] ", isClick ? "LBUTTONDOWN" : "MOUSEMOVE",
-          " uiOpen=1 wantCapMouse=", io.WantCaptureMouse ? 1 : 0,
-          " wantCapKb=", io.WantCaptureKeyboard ? 1 : 0,
-          " imguiMouse=(", (int)io.MousePos.x, ",", (int)io.MousePos.y, ")",
-          " osCursor=(", os.x, ",", os.y, ")",
-          " clipRect=(", clip.left, ",", clip.top, "-", clip.right, ",", clip.bottom, ")",
-          " capture=", (void*)cap,
-          " gameHwnd=", (void*)m_gameHwnd));
-      }
+    if (uiOpen && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP)) {
+      POINT os = {};
+      ::GetCursorPos(&os);
+      HWND cap = ::GetCapture();
+      const ImGuiID hoveredId = ImGui::GetHoveredID();
+      const ImGuiID activeId  = ImGui::GetActiveID();
+      Logger::info(str::format(
+        "[ImGUI-Diag] ", (msg == WM_LBUTTONDOWN ? "LBUTTONDOWN" : "LBUTTONUP"),
+        " wantCapMouse=", io.WantCaptureMouse ? 1 : 0,
+        " imguiMouse=(", (int)io.MousePos.x, ",", (int)io.MousePos.y, ")",
+        " osCursor=(", os.x, ",", os.y, ")",
+        " hoveredId=", hoveredId,
+        " activeId=", activeId,
+        " capture=", (void*)cap,
+        " gameHwnd=", (void*)m_gameHwnd));
     }
     if (uiOpen && !useOverlayInput) {
       const bool imguiOwnsMouse = isMouseMsg && io.WantCaptureMouse;

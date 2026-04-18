@@ -83,6 +83,20 @@ namespace RemixGui {
       const bool blocked = CheckRtxOptionPopups(rtxOption, std::nullopt, applyValue); \
     if (!blocked) { \
         applyValue(); \
+        std::string layers; \
+        rtxOption->forEachLayerValue( \
+          [&](const dxvk::RtxOptionLayer* l, const dxvk::GenericValue&) { \
+            if (!layers.empty()) layers += ","; \
+            layers += l->getName(); \
+            return true; \
+          }); \
+        dxvk::Logger::info(dxvk::str::format("[RtxOption-Edit] ", \
+          rtxOption->getFullName(), \
+          " applied; resolvedAfter=", rtxOption->get() == value ? "OK" : "SHADOWED", \
+          " layersWithValue=[", layers, "]")); \
+    } else { \
+        dxvk::Logger::info(dxvk::str::format("[RtxOption-Edit] ", \
+          rtxOption->getFullName(), " BLOCKED (popup shown)")); \
     } \
   } \
   return changed;

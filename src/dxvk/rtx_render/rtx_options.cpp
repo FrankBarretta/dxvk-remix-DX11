@@ -465,6 +465,14 @@ namespace dxvk {
 
     GraphicsPreset effectiveGraphicsPreset = RtxOptions::graphicsPreset();
 
+    // When the user has explicitly selected Custom, nothing should remain in the
+    // Quality Presets layer — its priority (0xFFFFFFFF) otherwise shadows every
+    // User-layer write from the UI, making checkboxes and sliders snap back to
+    // the old preset value. Clear the whole layer so the User layer wins.
+    if (effectiveGraphicsPreset == GraphicsPreset::Custom) {
+      RtxOptionLayer::getQualityLayer()->removeFromAllOptions();
+    }
+
     // Handle Automatic Graphics Preset (From configuration/default)
 
     if (effectiveGraphicsPreset == GraphicsPreset::Auto) {

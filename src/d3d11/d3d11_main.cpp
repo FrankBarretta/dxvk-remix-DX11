@@ -6,6 +6,7 @@
 #include "../dxgi/dxgi_adapter.h"
 
 #include "../dxvk/dxvk_instance.h"
+#include "../dxvk/rtx_render/rtx_options.h"
 
 #include "d3d11_device.h"
 #include "d3d11_enums.h"
@@ -174,6 +175,17 @@ extern "C" {
       util::RtxFileSys::init(exeDir.string());
       Logger::initRtxLog();
       util::RtxFileSys::print();
+
+      // d3d11.dll statically links its own copy of libdxvk, so the
+      // `inline static` RtxOption layer pointers and the `s_isInitialized`
+      // flag are TU-local to this module. dxgi.dll already ran
+      // RtxOptions::Create() when it built its DxvkInstance, but that only
+      // populated the pointers in *its* copy. Every UI edit routed through
+      // d3d11.dll (checkboxes, sliders, dropdowns) then hit nullptr layers
+      // and was silently dropped. Calling Create() here forces d3d11.dll's
+      // copy of the layer registry to initialise too; the call is a no-op
+      // for the singleton after the first time.
+      RtxOptions::Create();
     );
 
     Rc<DxvkAdapter>  dxvkAdapter;

@@ -348,8 +348,6 @@ namespace dxvk {
     // If layer is nullptr, uses the current target layer from RtxOptionLayerTarget.
     void setImmediately(const T& v, const RtxOptionLayer* layer = nullptr) {
       std::lock_guard<std::mutex> lock(RtxOptionImpl::getUpdateMutex());
-      if (!RtxOptionImpl::isInitialized()) return;
-      
       const RtxOptionLayer* targetLayer = getTargetLayer(layer);
       if (!targetLayer) {
         return;
@@ -633,8 +631,8 @@ namespace dxvk {
     template <typename U, std::enable_if_t<std::is_same_v<U, T>, bool> = true>
     void setValue(const U& v, const RtxOptionLayer* layer = nullptr) {
       std::lock_guard<std::mutex> lock(RtxOptionImpl::getUpdateMutex());
-      if (!RtxOptionImpl::isInitialized()) return;
-      
+      // Same rationale as setImmediately: skip the isInitialized guard —
+      // the TU-local static is unreliable across d3d11/dxgi DLL boundaries.
       const RtxOptionLayer* targetLayer = getTargetLayer(layer);
       if (!targetLayer) {
         return;

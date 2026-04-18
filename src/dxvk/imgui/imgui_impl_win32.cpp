@@ -665,11 +665,12 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
     case WM_MBUTTONDOWN: case WM_MBUTTONDBLCLK:
     case WM_XBUTTONDOWN: case WM_XBUTTONDBLCLK:
     {
-        // Skip if raw input is handling buttons
-        DWORD now = GetTickCount();
-        if (s_rawInputDeliveredThisFrame && (now - s_lastRawInputTime) < 100)
-          return 0;
-
+        // Games that register for raw input often request only movement
+        // (usFlags=MOUSE_MOVE_RELATIVE) and leave button delivery to the
+        // legacy WM_*BUTTON* pump. Skipping the legacy path whenever any
+        // WM_INPUT was seen recently drops those clicks entirely (e.g.
+        // UE3 titles like Batman Arkham Knight). Let ImGui dedupe: a
+        // second AddMouseButtonEvent in the same state is a no-op.
         int button = 0;
         if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK) { button = 0; }
         if (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONDBLCLK) { button = 1; }
@@ -686,11 +687,6 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
     case WM_MBUTTONUP:
     case WM_XBUTTONUP:
     {
-        // Skip if raw input is handling buttons
-        DWORD now = GetTickCount();
-        if (s_rawInputDeliveredThisFrame && (now - s_lastRawInputTime) < 100)
-          return 0;
-
         int button = 0;
         if (msg == WM_LBUTTONUP) { button = 0; }
         if (msg == WM_RBUTTONUP) { button = 1; }
@@ -713,11 +709,10 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
     case WM_SYSKEYDOWN:
     case WM_SYSKEYUP:
     {
-        // Skip if raw input is handling keyboard
-        DWORD now = GetTickCount();
-        if (s_rawInputDeliveredThisFrame && (now - s_lastRawInputTime) < 100)
-          return 0;
-
+        // s_rawInputDeliveredThisFrame is set for any WM_INPUT, including
+        // mouse-only raw input. Skipping legacy keyboard messages on that
+        // signal drops every keystroke for games that use raw input only
+        // for mouselook. ImGui dedupes identical key state, so forward.
         const bool is_key_down = (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN);
         if (wParam < 256)
         {
